@@ -1,0 +1,352 @@
+@import 'tailwindcss';
+
+/* Dark mode is driven by a `dark` class on <html>, set by src/lib/theme.js */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---------------------------------------------------------------------------
+   Rainy design tokens
+
+   The feel: a soft-focus meadow seen through frosted glass. Floral imagery
+   sits far back, a gradient scrim calms it, and content floats above on
+   translucent sheets. Nothing competes for attention; the controls are few,
+   large and obvious.
+
+   Raw values live here as --rainy-* and flip between light and dark.
+   The @theme block maps them onto Tailwind utilities, so components write
+   `bg-veil`, `text-ink`, `text-low` and get the right value in either mode.
+--------------------------------------------------------------------------- */
+
+:root {
+  color-scheme: light;
+
+  /* --- grounds --- */
+  --rainy-canvas: #f7f5f0; /* warm cream, the base page colour */
+  --rainy-surface: #fffefb; /* solid cards */
+  --rainy-veil: rgb(255 254 251 / 0.72); /* translucent sheets over imagery */
+  --rainy-veil-strong: rgb(255 254 251 / 0.88);
+  --rainy-sunken: #efece4; /* inset wells, meter tracks */
+
+  /* --- ink --- */
+  --rainy-ink: #1c1c1a;
+  --rainy-ink-soft: #5b594f;
+  --rainy-ink-faint: #918e82;
+
+  --rainy-line: rgb(28 28 26 / 0.09); /* hairlines read as tinted glass edges */
+
+  /* --- the three bands, each with a gradient range --- */
+  --rainy-low-deep: #2c6b4a;
+  --rainy-low: #4a9b6f;
+  --rainy-low-light: #9ed4b4;
+  --rainy-low-wash: #e9f2ec;
+
+  --rainy-med-deep: #a25f1e;
+  --rainy-med: #d4873a;
+  --rainy-med-light: #f0c48e;
+  --rainy-med-wash: #f8f0e6;
+
+  --rainy-high-deep: #8e3438;
+  --rainy-high: #c4565a;
+  --rainy-high-light: #e8a3a6;
+  --rainy-high-wash: #f8ebeb;
+
+  /* --- backdrop --- */
+  --rainy-bloom: url('/bloom-light.jpg');
+  /* how much cream sits between the florals and the content */
+  --rainy-scrim-top: rgb(247 245 240 / 0.84);
+  --rainy-scrim-bottom: rgb(247 245 240 / 0.52);
+  --rainy-grain: 0.055;
+
+  /* --- elevation: wide, faint, never a hard edge --- */
+  --rainy-shadow-soft: 0 1px 2px rgb(28 28 26 / 0.03), 0 10px 30px -14px rgb(28 28 26 / 0.12);
+  --rainy-shadow-lift: 0 2px 6px rgb(28 28 26 / 0.05), 0 26px 56px -24px rgb(28 28 26 / 0.20);
+}
+
+.dark {
+  color-scheme: dark;
+
+  --rainy-canvas: #14170f;
+  --rainy-surface: #1d211a;
+  --rainy-veil: rgb(32 38 30 / 0.66);
+  --rainy-veil-strong: rgb(32 38 30 / 0.86);
+  --rainy-sunken: #191d16;
+
+  --rainy-ink: #f1efe6;
+  --rainy-ink-soft: #a9a99b;
+  --rainy-ink-faint: #7b7c6f;
+
+  --rainy-line: rgb(241 239 230 / 0.11);
+
+  /* lifted so they hold contrast against the dark ground */
+  --rainy-low-deep: #3d8560;
+  --rainy-low: #6fbf92;
+  --rainy-low-light: #b3e2c6;
+  --rainy-low-wash: #1a2a20;
+
+  --rainy-med-deep: #b8793a;
+  --rainy-med: #e0a263;
+  --rainy-med-light: #f2cfa4;
+  --rainy-med-wash: #2a2317;
+
+  --rainy-high-deep: #a4565a;
+  --rainy-high: #d4797d;
+  --rainy-high-light: #ecb2b5;
+  --rainy-high-wash: #2a1c1d;
+
+  --rainy-bloom: url('/bloom-dark.jpg');
+  --rainy-scrim-top: rgb(20 23 15 / 0.84);
+  --rainy-scrim-bottom: rgb(20 23 15 / 0.56);
+  --rainy-grain: 0.085;
+
+  --rainy-shadow-soft: 0 1px 2px rgb(0 0 0 / 0.24), 0 10px 30px -14px rgb(0 0 0 / 0.50);
+  --rainy-shadow-lift: 0 2px 6px rgb(0 0 0 / 0.30), 0 26px 56px -24px rgb(0 0 0 / 0.62);
+}
+
+@theme inline {
+  --color-canvas: var(--rainy-canvas);
+  --color-surface: var(--rainy-surface);
+  --color-veil: var(--rainy-veil);
+  --color-veil-strong: var(--rainy-veil-strong);
+  --color-sunken: var(--rainy-sunken);
+
+  --color-ink: var(--rainy-ink);
+  --color-ink-soft: var(--rainy-ink-soft);
+  --color-ink-faint: var(--rainy-ink-faint);
+
+  --color-line: var(--rainy-line);
+
+  --color-low: var(--rainy-low);
+  --color-low-deep: var(--rainy-low-deep);
+  --color-low-light: var(--rainy-low-light);
+  --color-low-wash: var(--rainy-low-wash);
+
+  --color-med: var(--rainy-med);
+  --color-med-deep: var(--rainy-med-deep);
+  --color-med-light: var(--rainy-med-light);
+  --color-med-wash: var(--rainy-med-wash);
+
+  --color-high: var(--rainy-high);
+  --color-high-deep: var(--rainy-high-deep);
+  --color-high-light: var(--rainy-high-light);
+  --color-high-wash: var(--rainy-high-wash);
+
+  /* rounded-card 16px · rounded-sheet 28px · rounded-pill 99px */
+  --radius-card: 16px;
+  --radius-sheet: 28px;
+  --radius-pill: 99px;
+
+  --shadow-soft: var(--rainy-shadow-soft);
+  --shadow-lift: var(--rainy-shadow-lift);
+
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
+    Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+  /* small letterspaced labels only — the references lean on a mono face there */
+  --font-mono:
+    ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    background-color: var(--rainy-canvas);
+    color: var(--rainy-ink);
+    font-family: theme(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    /* stop the whole page rubber-banding when installed to the home screen */
+    overscroll-behavior-y: none;
+  }
+
+  /* respect people who ask their device for less motion */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  /* -------------------------------------------------------------------------
+     Backdrop — render once, near the top of the app tree.
+
+       <div className="bloom-field" aria-hidden="true" />
+
+     Out-of-focus florals, a cream scrim to settle them, and a whisper of
+     grain so the gradients never band on cheap screens.
+  ------------------------------------------------------------------------- */
+  .bloom-field {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image:
+      linear-gradient(to bottom, var(--rainy-scrim-top) 0%, var(--rainy-scrim-bottom) 100%),
+      var(--rainy-bloom);
+    background-size: cover;
+    background-position: center bottom;
+    background-repeat: no-repeat;
+  }
+
+  .bloom-field::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: var(--rainy-grain);
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* -------------------------------------------------------------------------
+     Glass sheet — the default container. Translucent so the meadow shows
+     through, blurred so it never competes with the text on top.
+  ------------------------------------------------------------------------- */
+  .sheet {
+    background-color: var(--rainy-veil);
+    border: 1px solid var(--rainy-line);
+    border-radius: var(--radius-sheet);
+    box-shadow: var(--rainy-shadow-soft);
+    -webkit-backdrop-filter: blur(20px) saturate(1.4);
+    backdrop-filter: blur(20px) saturate(1.4);
+  }
+
+  /* for text-dense panels that need more separation from the backdrop */
+  .sheet-solid {
+    background-color: var(--rainy-veil-strong);
+  }
+
+  /* -------------------------------------------------------------------------
+     Orb — the emotional centrepiece. A soft gradient sphere with a bloom of
+     colour behind it. Set the band with .orb-low / .orb-med / .orb-high.
+  ------------------------------------------------------------------------- */
+  .orb {
+    --orb-deep: var(--rainy-low-deep);
+    --orb-base: var(--rainy-low);
+    --orb-light: var(--rainy-low-light);
+
+    position: relative;
+    display: grid;
+    place-items: center;
+    aspect-ratio: 1;
+    border-radius: var(--radius-pill);
+    background: radial-gradient(
+      circle at 38% 28%,
+      var(--orb-deep) 0%,
+      var(--orb-base) 42%,
+      var(--orb-light) 76%,
+      transparent 100%
+    );
+    filter: blur(3px);
+  }
+
+  /* the halo: same colour, heavily blurred, sitting behind */
+  .orb::before {
+    content: '';
+    position: absolute;
+    inset: -18%;
+    border-radius: inherit;
+    background: radial-gradient(circle at 50% 46%, var(--orb-base) 0%, transparent 68%);
+    filter: blur(34px);
+    opacity: 0.38;
+    z-index: -1;
+  }
+
+  .orb-low  { --orb-deep: var(--rainy-low-deep);  --orb-base: var(--rainy-low);  --orb-light: var(--rainy-low-light); }
+  .orb-med  { --orb-deep: var(--rainy-med-deep);  --orb-base: var(--rainy-med);  --orb-light: var(--rainy-med-light); }
+  .orb-high { --orb-deep: var(--rainy-high-deep); --orb-base: var(--rainy-high); --orb-light: var(--rainy-high-light); }
+
+  /* In dark mode every accent token is lifted for text contrast, which leaves
+     the orb a flat glowing disc. It keeps its own darker ramp so it still
+     reads as a lit form rather than a lamp. */
+  .dark .orb-low  { --orb-deep: #1f4a35; --orb-base: #46946a; --orb-light: #83c6a1; }
+  .dark .orb-med  { --orb-deep: #5e3a14; --orb-base: #b8793a; --orb-light: #dfae76; }
+  .dark .orb-high { --orb-deep: #5a2427; --orb-base: #a4565a; --orb-light: #cf9295; }
+
+  /* a fully diffuse variant — no edge at all, just a cloud of colour */
+  .orb-soft {
+    background: radial-gradient(circle at 44% 38%, var(--orb-light) 0%, var(--orb-base) 38%, transparent 72%);
+    filter: blur(18px);
+  }
+  .orb-soft::before { display: none; }
+
+  /* -------------------------------------------------------------------------
+     Controls — few, large, unmistakable.
+  ------------------------------------------------------------------------- */
+
+  /* circular icon button, as in the voice-assistant reference */
+  .control {
+    display: grid;
+    place-items: center;
+    width: 3.5rem;
+    height: 3.5rem;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--rainy-line);
+    background-color: var(--rainy-veil);
+    color: var(--rainy-ink-soft);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    transition: color 160ms ease, transform 160ms ease;
+  }
+  .control:hover { color: var(--rainy-ink); }
+  .control:active { transform: scale(0.96); }
+
+  /* the one primary action on a screen */
+  .control-primary {
+    width: 4.5rem;
+    height: 4.5rem;
+    border: none;
+    color: #fff;
+    background: radial-gradient(
+      circle at 36% 26%,
+      var(--rainy-low) 0%,
+      var(--rainy-low-deep) 100%
+    );
+    box-shadow: var(--rainy-shadow-lift);
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 0.95rem;
+    border-radius: var(--radius-pill);
+    font-size: 0.8125rem;
+    line-height: 1;
+  }
+
+  /* small letterspaced caps, for field labels and metadata */
+  .label {
+    font-family: theme(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--rainy-ink-faint);
+  }
+
+  /* hairline meter with a gradient fill, as in the sunset reference */
+  .meter {
+    height: 4px;
+    border-radius: var(--radius-pill);
+    background-color: var(--rainy-sunken);
+    overflow: hidden;
+  }
+  .meter > span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(to right, var(--rainy-low), var(--rainy-low-light));
+  }
+}
+
+@layer utilities {
+  /* keeps content clear of the notch and home indicator in standalone mode */
+  .pt-safe { padding-top: env(safe-area-inset-top); }
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+}
