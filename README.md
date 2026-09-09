@@ -53,18 +53,76 @@ src/
 ## Using the data layer
 
 ```js
-import { checkIns, journalEntries } from './data'
+import { checkIns, brainDumps, notificationSettings } from './data'
 
-await checkIns.create({ level: 4, triggers: ['work'], note: 'Tight chest' })
+const checkIn = await checkIns.create({ timeSlot: 'morning', score: 7 })
 
-const recent = await checkIns.list({ limit: 7 })
-const one = await checkIns.get(id)
-await checkIns.update(id, { note: 'Eased off after a walk' })
-await checkIns.remove(id)
+// a brain dump that followed the check-in
+await brainDumps.create({ checkInId: checkIn.id, text: 'Too much at once' })
+
+// or one started on its own
+await brainDumps.create({ text: 'A thought on its own' })   // checkInId null
+
+await notificationSettings.setSlot('morning', { time: '07:15' })
 ```
 
 Every method returns a Promise, so use `await`. That is deliberate: when the
 app moves to Supabase, only `adapter.js` changes — no screen code does.
+
+**Collections** — `checkIns`, `brainDumps`, `breathingSessions`, `journalEntries`
+
+| Method | |
+| --- | --- |
+| `create(fields)` | Add a record. Throws `ValidationError` on bad input. |
+| `list(options)` | `{ where, sort, limit, offset }`. Newest first by default. |
+| `get(id)` · `latest()` · `count(where)` | |
+| `between(start, end)` | Records timestamped in a range. |
+| `update(id, patch)` | Only the fields given are changed. |
+| `remove(id)` · `clear()` | |
+| `subscribe(fn)` | Fires on change, including from another tab. |
+
+`where` takes equality matches, and an array means "any of":
+
+```js
+await checkIns.list({ where: { timeSlot: ['morning', 'night'] } })
+await brainDumps.list({ where: { checkInId: null } })   // standalone only
+```
+
+**Settings** — `notificationSettings`
+
+`get()` · `update(patch)` · `setSlot(slot, patch)` · `reset()` ·
+`activeSlots()` · `subscribe(fn)`
+
+**Helpers**
+
+`relatedTo(checkInId)` · `standalone()` · `journalFor(date)` ·
+`addJournalItem(text, date)` · `bandForScore(score)` · `toDateKey(date)` ·
+`exportAll()` · `importAll()` · `clearAll()`
+
+## The models
+
+Defined in `src/data/schema.js` — the one file to edit when fields change.
+Stored under `rainy:v1:<KEY>` in localStorage.
+
+| Key | Shape |
+| --- | --- |
+| `CHECK_INS` | `id`, `timestamp`, `timeSlot`, `score` 0–10 |
+| `BRAIN_DUMPS` | `id`, `checkInId` (nullable), `timestamp`, `text`, `wordFrequencies` |
+| `BREATHING_SESSIONS` | `id`, `checkInId` (nullable), `timestamp`, `mode` `box`/`478`, `cyclesCompleted` |
+| `JOURNAL_ENTRIES` | `id`, `date` (YYYY-MM-DD), `items[]`, `createdAt`, `updatedAt` |
+| `NOTIFICATION_SETTINGS` | One object: four slots, each `{ enabled, time, default }` |
+
+`checkInId` is `null` when a brain dump or breathing session was started on
+its own rather than from a check-in.
+
+Judgement calls worth knowing about, each changeable in one place:
+
+- **Score bands.** `bandForScore` splits 0–10 as 0–3 low, 4–6 medium, 7–10 high.
+- **Reminders start enabled.** They cannot fire until the browser grants
+  notification permission, so this is a preference, not an intrusion.
+- **Journal entries sort by `date`**, not by when they were written.
+- **One entry per day** is assumed by `journalFor` and `addJournalItem` but is
+  not enforced by the store itself.
 
 ## Design language
 

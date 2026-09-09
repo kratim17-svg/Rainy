@@ -1,13 +1,18 @@
 /**
  * Builds a repository (create / list / get / update / remove) from a schema.
  *
+ * Time fields differ per model: check-ins, brain dumps and breathing sessions
+ * carry a single `timestamp`, while journal entries carry `createdAt` and
+ * `updatedAt` because they are edited across a day. Each schema declares its
+ * own via `timestamps`, and this factory maintains whichever it names.
+ *
  * Everything returns a Promise even though localStorage is synchronous.
  * That is deliberate: screen code that already awaits these calls will not
  * need touching when the adapter becomes a network-backed one.
  */
 
 import { adapter } from './adapter.js'
-import { validate } from './schema.js'
+import { validate, ValidationError } from './schema.js'
 
 /** RFC4122 id, with a fallback for browsers without a secure context. */
 function newId() {
@@ -18,7 +23,10 @@ function newId() {
 const now = () => new Date().toISOString()
 
 export function createRepository(schema) {
-  const { collection } = schema
+  const { collection, timestamps } = schema
+  const createdField = timestamps.created
+  const updatedField = timestamps.updated ?? null
+  const defaultSort = schema.defaultSort ?? { field: createdField, direction: 'desc' }
 
   return {
     schema,
@@ -29,14 +37,22 @@ export function createRepository(schema) {
      */
     async create(input = {}) {
       const fields = validate(schema, input)
-      const timestamp = now()
+      const stamp = now()
 
-      return adapter.insert(collection, {
-        id: newId(),
-        createdAt: timestamp,
-        updatedAt: timestamp,
-        ...fields,
-      })
+      const row = { id: newId(), ...fields, [createdField]: stamp }
+      if (updatedField) row[updatedField] = stamp
+
+      // an explicit time wins — used when logging something after the fact
+      if (input[createdField] !== undefined && input[createdField] !== null) {
+        const explicit = new Date(input[createdField])
+        if (Number.isNaN(explicit.getTime())) {
+          throw new ValidationError([{ field: createdField, message: 'must be a valid date' }])
+        }
+        row[createdField] = explicit.toISOString()
+        if (updatedField) row[updatedField] = row[createdField]
+      }
+
+      return adapter.insert(collection, row)
     },
 
     /**
@@ -45,10 +61,7 @@ export function createRepository(schema) {
      *           limit?: number, offset?: number }} [options]
      */
     async list(options = {}) {
-      return adapter.list(collection, {
-        sort: { field: 'createdAt', direction: 'desc' },
-        ...options,
-      })
+      return adapter.list(collection, { sort: defaultSort, ...options })
     },
 
     /** One record by id, or null. */
@@ -56,12 +69,12 @@ export function createRepository(schema) {
       return adapter.get(collection, id)
     },
 
-    /** Records created within a date range (inclusive start, exclusive end). */
+    /** Records timestamped within a range (inclusive start, exclusive end). */
     async between(start, end, options = {}) {
       const from = new Date(start).toISOString()
       const to = new Date(end).toISOString()
       const rows = await this.list(options)
-      return rows.filter((row) => row.createdAt >= from && row.createdAt < to)
+      return rows.filter((row) => row[createdField] >= from && row[createdField] < to)
     },
 
     /** The most recent record, or null. */
@@ -76,11 +89,13 @@ export function createRepository(schema) {
 
     /**
      * Patch a record. Only the fields supplied are validated and changed.
+     * Models that track an updated time get it refreshed; the rest do not.
      * @throws {ValidationError}
      */
     async update(id, patch = {}) {
       const fields = validate(schema, patch, { partial: true })
-      return adapter.update(collection, id, { ...fields, updatedAt: now() })
+      if (updatedField) fields[updatedField] = now()
+      return adapter.update(collection, id, fields)
     },
 
     /**
@@ -90,14 +105,12 @@ export function createRepository(schema) {
      */
     async restore(row = {}) {
       const fields = validate(schema, row)
-      const timestamp = now()
+      const stamp = now()
 
-      return adapter.insert(collection, {
-        ...fields,
-        id: row.id ?? newId(),
-        createdAt: row.createdAt ?? timestamp,
-        updatedAt: row.updatedAt ?? row.createdAt ?? timestamp,
-      })
+      const restored = { ...fields, id: row.id ?? newId(), [createdField]: row[createdField] ?? stamp }
+      if (updatedField) restored[updatedField] = row[updatedField] ?? restored[createdField]
+
+      return adapter.insert(collection, restored)
     },
 
     /** @returns {boolean} false when there was nothing to delete. */

@@ -13,7 +13,12 @@ import {
   brainDumps,
   breathingSessions,
   journalEntries,
-  bandForLevel,
+  notificationSettings,
+  relatedTo,
+  standalone,
+  addJournalItem,
+  bandForScore,
+  toDateKey,
   isPersistent,
   ValidationError,
 } from './data'
@@ -28,105 +33,135 @@ async function runChecks() {
     )
 
   // start from a clean slate so re-runs are identical
-  await Promise.all([checkIns.clear(), brainDumps.clear(), breathingSessions.clear(), journalEntries.clear()])
+  await Promise.all([
+    checkIns.clear(),
+    brainDumps.clear(),
+    breathingSessions.clear(),
+    journalEntries.clear(),
+    notificationSettings.reset(),
+  ])
 
-  await record('CheckIn — create, read back', async () => {
-    const made = await checkIns.create({ level: 4, triggers: ['work'], note: 'Tight chest' })
-    const found = await checkIns.get(made.id)
-    if (!found) throw new Error('could not read it back')
-    if (found.level !== 4) throw new Error('level did not round-trip')
-    if (!found.createdAt) throw new Error('no timestamp')
-    return `id ${found.id.slice(0, 8)}…, band "${bandForLevel(found.level)}"`
+  let anchor = null
+
+  await record('CheckIn — exact shape', async () => {
+    anchor = await checkIns.create({ timeSlot: 'morning', score: 7 })
+    const keys = Object.keys(anchor).sort().join(', ')
+    if (keys !== 'id, score, timeSlot, timestamp') throw new Error(`unexpected fields: ${keys}`)
+    if (anchor.timestamp !== new Date(anchor.timestamp).toISOString()) throw new Error('timestamp is not ISO8601')
+    return `${keys} — band "${bandForScore(anchor.score)}"`
   })
 
-  await record('CheckIn — defaults applied', async () => {
-    const made = await checkIns.create({ level: 1 })
-    if (!Array.isArray(made.triggers) || made.triggers.length) throw new Error('triggers should default to []')
-    if (made.note !== '') throw new Error('note should default to ""')
-    if (!made.occurredAt) throw new Error('occurredAt should default to now')
-    return 'triggers [], note "", occurredAt set'
-  })
-
-  await record('CheckIn — validation rejects bad input', async () => {
-    try {
-      await checkIns.create({ level: 9 })
-    } catch (error) {
-      if (error instanceof ValidationError) return error.message
-      throw new Error('threw the wrong kind of error')
+  await record('CheckIn — score range and slots enforced', async () => {
+    await checkIns.create({ timeSlot: 'night', score: 0 })
+    await checkIns.create({ timeSlot: 'midday', score: 10 })
+    for (const bad of [{ timeSlot: 'morning', score: 11 }, { timeSlot: 'afternoon', score: 5 }, { score: 5 }]) {
+      try {
+        await checkIns.create(bad)
+        throw new Error(`accepted ${JSON.stringify(bad)}`)
+      } catch (error) {
+        if (!(error instanceof ValidationError)) throw error
+      }
     }
-    throw new Error('level 9 was accepted, but the range is 1–5')
+    return '0 and 10 accepted; 11, bad slot and missing score refused'
   })
 
-  await record('CheckIn — required field enforced', async () => {
-    try {
-      await checkIns.create({ note: 'no level given' })
-    } catch (error) {
-      if (error instanceof ValidationError) return error.message
-      throw error
-    }
-    throw new Error('a check-in without a level was accepted')
-  })
-
-  await record('BrainDump — create, update, clear flag', async () => {
-    const made = await brainDumps.create({ body: 'Too many tabs open in my head', tags: ['evening'] })
-    if (made.cleared !== false) throw new Error('cleared should default to false')
-    const updated = await brainDumps.update(made.id, { cleared: true })
-    if (updated.cleared !== true) throw new Error('update did not stick')
-    if (updated.createdAt !== made.createdAt) throw new Error('createdAt should never change')
-    // two writes inside the same millisecond share a timestamp — that is fine,
-    // it must simply never go backwards
-    if (updated.updatedAt < made.createdAt) throw new Error('updatedAt went backwards')
-    return 'created, patched, createdAt held'
-  })
-
-  await record('BreathingSession — create with oneOf field', async () => {
-    const made = await breathingSessions.create({
-      pattern: 'box',
-      durationSeconds: 180,
-      cyclesCompleted: 12,
-      completed: true,
-      levelBefore: 4,
-      levelAfter: 2,
+  await record('BrainDump — linked to a check-in', async () => {
+    const dump = await brainDumps.create({
+      checkInId: anchor.id,
+      text: 'Too many things at once',
+      wordFrequencies: { too: 1, many: 1, things: 1 },
     })
-    if (made.pattern !== 'box') throw new Error('pattern did not save')
+    const keys = Object.keys(dump).sort().join(', ')
+    if (keys !== 'checkInId, id, text, timestamp, wordFrequencies') throw new Error(`unexpected fields: ${keys}`)
+    if (dump.wordFrequencies.many !== 1) throw new Error('wordFrequencies did not round-trip')
+    return keys
+  })
+
+  await record('BrainDump — standalone, checkInId null', async () => {
+    const dump = await brainDumps.create({ text: 'A thought on its own' })
+    if (dump.checkInId !== null) throw new Error('checkInId should default to null')
+    if (Object.keys(dump.wordFrequencies).length) throw new Error('wordFrequencies should default to {}')
+    return 'checkInId null, wordFrequencies {}'
+  })
+
+  await record('BreathingSession — both modes', async () => {
+    const box = await breathingSessions.create({ checkInId: anchor.id, mode: 'box', cyclesCompleted: 6 })
+    const long = await breathingSessions.create({ mode: '478' })
+    if (long.checkInId !== null) throw new Error('standalone session should have null checkInId')
+    if (long.cyclesCompleted !== 0) throw new Error('cyclesCompleted should default to 0')
     try {
-      await breathingSessions.create({ pattern: 'freestyle', durationSeconds: 10 })
-      throw new Error('an unknown pattern was accepted')
+      await breathingSessions.create({ mode: '4-7-8' })
+      throw new Error('an unknown mode was accepted')
     } catch (error) {
       if (!(error instanceof ValidationError)) throw error
     }
-    return 'box accepted, unknown pattern refused'
+    return `box (${box.cyclesCompleted} cycles) and 478; "4-7-8" refused`
   })
 
-  await record('JournalEntry — create and list newest first', async () => {
-    await journalEntries.create({ title: 'Older', body: 'First thing written' })
-    await new Promise((r) => setTimeout(r, 5))
-    await journalEntries.create({ title: 'Newer', body: 'Second thing written' })
-    const rows = await journalEntries.list()
-    if (rows.length !== 2) throw new Error(`expected 2 entries, found ${rows.length}`)
-    if (rows[0].title !== 'Newer') throw new Error('list is not newest-first')
-    return '2 entries, newest first'
+  await record('JournalEntry — date keyed, items appended', async () => {
+    const today = toDateKey()
+    const first = await addJournalItem('Slept badly', today)
+    const second = await addJournalItem('Walked at lunch', today)
+    if (second.items.length !== 2) throw new Error('second item did not append')
+    if (second.id !== first.id) throw new Error('a second entry was created for the same day')
+    if (second.createdAt !== first.createdAt) throw new Error('createdAt should not change')
+    try {
+      await journalEntries.create({ date: '09/09/2026' })
+      throw new Error('a non ISO date was accepted')
+    } catch (error) {
+      if (!(error instanceof ValidationError)) throw error
+    }
+    return `${today} — ${second.items.length} items, one entry`
   })
 
-  await record('Query — limit, count and latest', async () => {
-    const all = await checkIns.list()
-    const one = await checkIns.list({ limit: 1 })
-    const total = await checkIns.count()
-    const last = await checkIns.latest()
-    if (one.length !== 1) throw new Error('limit ignored')
-    if (total !== all.length) throw new Error('count disagrees with list')
-    if (last?.id !== all[0]?.id) throw new Error('latest is not the newest row')
-    return `${total} check-ins stored`
+  await record('Linking — related vs standalone', async () => {
+    const linked = await relatedTo(anchor.id)
+    const loose = await standalone()
+    if (linked.brainDumps.length !== 1 || linked.breathingSessions.length !== 1) {
+      throw new Error('relatedTo did not find both records')
+    }
+    if (loose.brainDumps.length !== 1 || loose.breathingSessions.length !== 1) {
+      throw new Error('standalone did not find the unlinked records')
+    }
+    return '1 dump + 1 session linked, 1 of each standalone'
   })
 
-  await record('Delete — removes exactly one row', async () => {
-    const made = await journalEntries.create({ body: 'temporary' })
-    const before = await journalEntries.count()
-    const removed = await journalEntries.remove(made.id)
-    const after = await journalEntries.count()
-    if (!removed || after !== before - 1) throw new Error('delete did not work')
-    if (await journalEntries.remove('does-not-exist')) throw new Error('deleting a missing id returned true')
-    return 'one removed, missing id returns false'
+  await record('NotificationSettings — defaults and edits', async () => {
+    const initial = await notificationSettings.get()
+    const times = ['morning', 'midday', 'evening', 'night'].map((s) => initial[s].time).join(' ')
+    if (times !== '08:00 12:00 17:00 21:00') throw new Error(`unexpected defaults: ${times}`)
+
+    const edited = await notificationSettings.setSlot('morning', { time: '07:15' })
+    if (edited.morning.time !== '07:15') throw new Error('time did not save')
+    if (edited.morning.default !== '08:00') throw new Error('default should not change')
+    if (edited.night.time !== '21:00') throw new Error('other slots should be untouched')
+
+    await notificationSettings.setSlot('night', { enabled: false })
+    const active = await notificationSettings.activeSlots()
+    if (active.join(' ') !== 'morning midday evening') throw new Error(`unexpected active slots: ${active}`)
+
+    try {
+      await notificationSettings.setSlot('morning', { time: '25:00' })
+      throw new Error('25:00 was accepted')
+    } catch (error) {
+      if (!(error instanceof ValidationError)) throw error
+    }
+    return 'defaults correct, 07:15 saved, night off, 25:00 refused'
+  })
+
+  await record('Storage — spec-named keys', async () => {
+    const keys = Object.keys(localStorage).filter((k) => k.startsWith('rainy:v1:')).sort()
+    const expected = [
+      'rainy:v1:BRAIN_DUMPS',
+      'rainy:v1:BREATHING_SESSIONS',
+      'rainy:v1:CHECK_INS',
+      'rainy:v1:JOURNAL_ENTRIES',
+      'rainy:v1:NOTIFICATION_SETTINGS',
+    ]
+    for (const key of expected) {
+      if (!keys.includes(key)) throw new Error(`missing ${key}`)
+    }
+    return expected.map((k) => k.replace('rainy:v1:', '')).join(', ')
   })
 
   await record('Survives a reload', async () => {
@@ -134,21 +169,27 @@ async function runChecks() {
     return 'localStorage is writable'
   })
 
-  const chart = (await checkIns.list({ sort: { field: 'createdAt', direction: 'asc' } })).map((row, i) => ({
+  const chart = (await checkIns.list({ sort: { field: 'timestamp', direction: 'asc' } })).map((row, i) => ({
     i,
-    level: row.level,
+    score: row.score,
   }))
 
   // leave no test data behind
-  await Promise.all([checkIns.clear(), brainDumps.clear(), breathingSessions.clear(), journalEntries.clear()])
+  await Promise.all([
+    checkIns.clear(),
+    brainDumps.clear(),
+    breathingSessions.clear(),
+    journalEntries.clear(),
+    notificationSettings.reset(),
+  ])
 
   return { results, chart }
 }
 
 const BANDS = [
-  { key: 'low', label: 'Settled', orb: 'orb-low', text: 'text-low', wash: 'bg-low-wash' },
-  { key: 'medium', label: 'Unsettled', orb: 'orb-med', text: 'text-med', wash: 'bg-med-wash' },
-  { key: 'high', label: 'Overwhelmed', orb: 'orb-high', text: 'text-high', wash: 'bg-high-wash' },
+  { key: 'low', score: 2, label: 'Settled', orb: 'orb-low', text: 'text-low', wash: 'bg-low-wash' },
+  { key: 'medium', score: 5, label: 'Unsettled', orb: 'orb-med', text: 'text-med', wash: 'bg-med-wash' },
+  { key: 'high', score: 9, label: 'Overwhelmed', orb: 'orb-high', text: 'text-high', wash: 'bg-high-wash' },
 ]
 
 export default function App() {
@@ -197,7 +238,9 @@ export default function App() {
           <div className={`orb w-52 ${band.orb}`} />
 
           <p className="mt-8 text-xl font-medium tracking-tight">{band.label}</p>
-          <p className="mt-1 text-sm text-ink-soft">How things feel right now</p>
+          <p className="mt-1 text-sm text-ink-soft">
+            Score {band.score} of 10 — band &ldquo;{bandForScore(band.score)}&rdquo;
+          </p>
 
           {/* enough control, and no more: three plain choices */}
           <div className="mt-6 flex gap-2" role="group" aria-label="Anxiety level">
@@ -263,10 +306,10 @@ export default function App() {
             <div className="mt-4">
               <ResponsiveContainer width="100%" height={80} debounce={0}>
                 <LineChart data={state.chart} margin={{ top: 6, bottom: 6, left: 0, right: 0 }}>
-                  <YAxis hide domain={[1, 5]} />
+                  <YAxis hide domain={[0, 10]} />
                   <Line
                     type="monotone"
-                    dataKey="level"
+                    dataKey="score"
                     stroke={`var(--rainy-${band.key === 'medium' ? 'med' : band.key})`}
                     strokeWidth={2}
                     dot={false}
