@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
+import FocusHeader from '../components/FocusHeader.jsx'
 import ScoreScale from '../components/ScoreScale.jsx'
 import { checkIns } from '../data/index.js'
 import { bandForScore, needsSupport, textClassFor } from '../lib/scoring.js'
@@ -27,7 +28,7 @@ export default function CheckIn() {
       if (needsSupport(score)) {
         navigate(`/check-in/support?checkIn=${checkIn.id}`, { replace: true })
       } else {
-        navigate('/', { replace: true, state: { logged: true } })
+        navigate('/', { replace: true, state: { toast: 'Logged' } })
       }
     } catch (cause) {
       setError(cause.message)
@@ -36,7 +37,10 @@ export default function CheckIn() {
   }
 
   return (
-    <div className="flex flex-1 flex-col">
+    <>
+      <FocusHeader />
+
+      <main className="pb-safe flex flex-1 flex-col px-5 pb-8">
       <p className="label">Check in</p>
       <h1 className="mt-2 text-[26px] leading-tight font-medium tracking-tight">
         How are you feeling right now?
@@ -75,6 +79,7 @@ export default function CheckIn() {
       >
         {saving ? 'Saving…' : 'Save'}
       </button>
-    </div>
+      </main>
+    </>
   )
 }

@@ -9,11 +9,11 @@ export default function Home() {
   const now = new Date()
   const location = useLocation()
   const navigate = useNavigate()
-  const [logged, setLogged] = useState(Boolean(location.state?.logged))
+  const [toast, setToast] = useState(location.state?.toast ?? null)
 
   // clear the flag so the chip does not reappear on a refresh or a back
   const dismiss = useCallback(() => {
-    setLogged(false)
+    setToast(null)
     navigate('.', { replace: true, state: null })
   }, [navigate])
 
@@ -29,7 +29,7 @@ export default function Home() {
         <ChevronRight size={20} className="text-ink-faint shrink-0" aria-hidden="true" />
       </Link>
 
-      {logged && <Toast message="Logged" onDone={dismiss} />}
+      {toast && <Toast message={toast} onDone={dismiss} />}
     </Screen>
   )
 }

@@ -172,6 +172,13 @@
       animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
     }
+
+    /* The breathing circle is the exercise itself — without its pacing the
+       screen cannot do its job. A slow, steady scale is the benign kind of
+       motion, so it keeps its timing. */
+    .breath-orb {
+      transition-duration: var(--breath-duration, 0s) !important;
+    }
   }
 }
 
@@ -410,6 +417,69 @@
   }
   .dot:hover:not([aria-pressed='true']) > span {
     background-color: color-mix(in srgb, var(--dot) 26%, var(--dot-wash));
+  }
+
+  /* -------------------------------------------------------------------------
+     Breathing circle
+
+     Size is driven from React, the easing from here. The duration comes in
+     as --breath-duration so the reduced-motion exception above can restore
+     it with !important.
+  ------------------------------------------------------------------------- */
+  .breath-orb {
+    display: grid;
+    place-items: center;
+    border-radius: var(--radius-pill);
+    background: radial-gradient(
+      circle at 38% 28%,
+      var(--rainy-low-deep) 0%,
+      var(--rainy-low) 46%,
+      var(--rainy-low-light) 82%,
+      transparent 100%
+    );
+    transition-property: width, height;
+    transition-timing-function: cubic-bezier(0.37, 0, 0.35, 1);
+    transition-duration: var(--breath-duration, 0s);
+  }
+  .dark .breath-orb {
+    background: radial-gradient(
+      circle at 38% 28%,
+      #1f4a35 0%,
+      #46946a 46%,
+      #83c6a1 82%,
+      transparent 100%
+    );
+  }
+
+  /* the countdown, centred in the deep part of the gradient */
+  .breath-count {
+    font-size: 2rem;
+    font-weight: 300;
+    font-variant-numeric: tabular-nums;
+    color: #fff;
+    text-shadow: 0 1px 12px rgb(0 0 0 / 0.28);
+  }
+
+  /* segmented control for the two breathing modes */
+  .segment {
+    display: flex;
+    gap: 0.25rem;
+    padding: 0.25rem;
+    border-radius: var(--radius-pill);
+    background-color: var(--rainy-sunken);
+  }
+  .segment > button {
+    flex: 1 1 0;
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-pill);
+    font-size: 0.8125rem;
+    color: var(--rainy-ink-soft);
+    transition: background-color 160ms ease, color 160ms ease;
+  }
+  .segment > button[aria-pressed='true'] {
+    background-color: var(--rainy-surface);
+    color: var(--rainy-ink);
+    box-shadow: var(--rainy-shadow-soft);
   }
 
   .chip {

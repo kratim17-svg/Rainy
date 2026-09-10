@@ -1,5 +1,6 @@
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { PenLine, Wind } from 'lucide-react'
+import FocusHeader from '../components/FocusHeader.jsx'
 
 /**
  * Shown after a check-in of 6 or more. The score is already saved — these
@@ -27,7 +28,10 @@ export default function CheckInSupport() {
   ]
 
   return (
-    <div className="flex flex-1 flex-col">
+    <>
+      <FocusHeader onBack={() => navigate('/', { replace: true })} />
+
+      <main className="pb-safe flex flex-1 flex-col px-5 pb-8">
       <p className="label">Logged</p>
       <h1 className="mt-2 text-[26px] leading-tight font-medium tracking-tight">
         That sounds like a lot.
@@ -54,11 +58,12 @@ export default function CheckInSupport() {
 
       <button
         type="button"
-        onClick={() => navigate('/', { replace: true, state: { logged: true } })}
+        onClick={() => navigate('/', { replace: true, state: { toast: 'Logged' } })}
         className="btn btn-quiet"
       >
         Just save
       </button>
-    </div>
+      </main>
+    </>
   )
 }

@@ -148,6 +148,38 @@ ok('spec-named keys', JSON.stringify(keys) === JSON.stringify([
   'rainy:v1:JOURNAL_ENTRIES','rainy:v1:NOTIFICATION_SETTINGS']))
 ok('stored as JSON arrays', Array.isArray(JSON.parse(mem.get('rainy:v1:CHECK_INS'))))
 
+console.log('\n-- word frequencies --')
+const { wordFrequencies, topWords, STOP_WORDS } = await import(new URL('../src/lib/words.js', import.meta.url))
+
+ok('stop word list is the 48 from the spec', STOP_WORDS.size === 48)
+ok('lowercases', JSON.stringify(wordFrequencies('Worry WORRY worry')) === JSON.stringify({ worry: 3 }))
+ok('strips punctuation', JSON.stringify(wordFrequencies('deadline, deadline. deadline!')) === JSON.stringify({ deadline: 3 }))
+ok('drops every stop word', Object.keys(wordFrequencies(
+  'the a an and or but in on at to for of is it i my me was are be been this that with so just have had not do did as if we you he she they all its from by about no up out can get'
+)).length === 0)
+ok('keeps meaning, drops filler', JSON.stringify(wordFrequencies('I have so much work to do about the work'))
+  === JSON.stringify({ much: 1, work: 2 }))
+ok("don't becomes dont", Object.keys(wordFrequencies("don't")).join() === 'dont')
+ok('curly apostrophe too (what phones type)', Object.keys(wordFrequencies('don\u2019t')).join() === 'dont')
+ok('no stray one-letter tokens from contractions',
+  Object.keys(wordFrequencies("I can't sleep, it's 3am and I'm wired")).every(w => w.length > 1))
+ok('hyphens split words', JSON.stringify(wordFrequencies('self-care')) === JSON.stringify({ self: 1, care: 1 }))
+ok('newlines and tabs are separators', JSON.stringify(wordFrequencies('sleep\n\tsleep')) === JSON.stringify({ sleep: 2 }))
+ok('keeps numbers', JSON.stringify(wordFrequencies('3am 3am')) === JSON.stringify({ '3am': 2 }))
+ok('keeps accents', Object.keys(wordFrequencies('café')).join() === 'café')
+ok('empty text', JSON.stringify(wordFrequencies('')) === '{}')
+ok('null-ish text', JSON.stringify(wordFrequencies(undefined)) === '{}')
+ok('punctuation only', JSON.stringify(wordFrequencies('... !!! ---')) === '{}')
+ok('topWords ranks by count then alphabetically',
+  JSON.stringify(topWords(wordFrequencies('work work sleep sleep money'), 2))
+  === JSON.stringify([{ word: 'sleep', count: 2 }, { word: 'work', count: 2 }]))
+
+// the shape must survive a real save
+const dumped = await brainDumps.create({ text: 'work work deadline', wordFrequencies: wordFrequencies('work work deadline') })
+ok('frequencies round-trip through storage',
+  JSON.stringify((await brainDumps.get(dumped.id)).wordFrequencies) === JSON.stringify({ work: 2, deadline: 1 }))
+await brainDumps.remove(dumped.id)
+
 console.log('\n-- backup --')
 const dump = await D.exportAll()
 ok('export includes settings', !!dump.data.notificationSettings)
