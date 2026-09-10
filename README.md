@@ -178,3 +178,7 @@ Adapted from the visual references:
 
 The backdrops in `public/bloom-*.jpg` are generated, not stock photography, so
 there is nothing to license and the app stays fully self-contained offline.
+
+## Licence
+
+MIT — see [LICENSE](LICENSE). Copyright (c) 2026 Krati Mittal.
