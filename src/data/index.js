@@ -1,7 +1,7 @@
 /**
  * Rainy's data layer — the only data import screens should need.
  *
- *   import { checkIns, journalEntries, notificationSettings } from '../data'
+ *   import { checkIns, journalEntries, notificationSettings } from '../data/index.js'
  *
  *   const checkIn = await checkIns.create({ timeSlot: 'morning', score: 7 })
  *   await brainDumps.create({ checkInId: checkIn.id, text: 'Too much at once' })

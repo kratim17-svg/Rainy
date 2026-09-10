@@ -1,9 +1,14 @@
 /// <reference lib="webworker" />
-import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching'
+import { precacheAndRoute, cleanupOutdatedCaches, createHandlerBoundToURL } from 'workbox-precaching'
+import { NavigationRoute, registerRoute } from 'workbox-routing'
 
 // vite-plugin-pwa replaces self.__WB_MANIFEST with the built asset list
 precacheAndRoute(self.__WB_MANIFEST)
 cleanupOutdatedCaches()
+
+// Rainy is a single-page app: every navigation is served the app shell, so
+// /journal and /insights still open when there is no network.
+registerRoute(new NavigationRoute(createHandlerBoundToURL('index.html')))
 
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()))

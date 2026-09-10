@@ -53,7 +53,7 @@ src/
 ## Using the data layer
 
 ```js
-import { checkIns, brainDumps, notificationSettings } from './data'
+import { checkIns, brainDumps, notificationSettings } from './data/index.js'
 
 const checkIn = await checkIns.create({ timeSlot: 'morning', score: 7 })
 
