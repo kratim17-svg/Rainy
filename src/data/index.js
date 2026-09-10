@@ -10,7 +10,7 @@
 
 import { createRepository } from './collection.js'
 import { notificationSettings } from './singleton.js'
-import { schemas, toDateKey } from './schema.js'
+import { bandForScore, schemas, toDateKey } from './schema.js'
 
 export const checkIns = createRepository(schemas.checkIns)
 export const brainDumps = createRepository(schemas.brainDumps)
@@ -86,6 +86,79 @@ export async function addJournalItem(text, date = toDateKey()) {
   const existing = await journalFor(date)
   if (!existing) return journalEntries.create({ date, items: [text] })
   return journalEntries.update(existing.id, { items: [...existing.items, text] })
+}
+
+/* -------------------------------------------------------------------------
+   Timeline
+
+   One day's activity, stitched into a single ordered list. Anything that
+   followed a check-in is nested under it rather than repeated, so the day
+   reads as a sequence of moments rather than a pile of records.
+------------------------------------------------------------------------- */
+
+/**
+ * @param {string} [date] YYYY-MM-DD, defaulting to today
+ * @returns {Promise<Array<
+ *   | { kind: 'checkIn', id, at, score, band, brainDumps, breathingSessions }
+ *   | { kind: 'brainDump', id, at, text, wordFrequencies }
+ *   | { kind: 'breathing', id, at, mode, cyclesCompleted }
+ * >>} newest first
+ */
+export async function timelineFor(date = toDateKey()) {
+  const start = new Date(`${date}T00:00:00`)
+  const end = new Date(start)
+  end.setDate(end.getDate() + 1)
+
+  const [ins, dumps, sessions] = await Promise.all([
+    checkIns.between(start, end),
+    brainDumps.between(start, end),
+    breathingSessions.between(start, end),
+  ])
+
+  const by = (rows) => {
+    const map = new Map()
+    for (const row of rows) {
+      if (!row.checkInId) continue
+      if (!map.has(row.checkInId)) map.set(row.checkInId, [])
+      map.get(row.checkInId).push(row)
+    }
+    return map
+  }
+
+  const dumpsFor = by(dumps)
+  const sessionsFor = by(sessions)
+
+  const entries = [
+    ...ins.map((row) => ({
+      kind: 'checkIn',
+      id: row.id,
+      at: row.timestamp,
+      score: row.score,
+      band: bandForScore(row.score),
+      brainDumps: dumpsFor.get(row.id) ?? [],
+      breathingSessions: sessionsFor.get(row.id) ?? [],
+    })),
+    ...dumps
+      .filter((row) => !row.checkInId)
+      .map((row) => ({
+        kind: 'brainDump',
+        id: row.id,
+        at: row.timestamp,
+        text: row.text,
+        wordFrequencies: row.wordFrequencies,
+      })),
+    ...sessions
+      .filter((row) => !row.checkInId)
+      .map((row) => ({
+        kind: 'breathing',
+        id: row.id,
+        at: row.timestamp,
+        mode: row.mode,
+        cyclesCompleted: row.cyclesCompleted,
+      })),
+  ]
+
+  return entries.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0))
 }
 
 /* -------------------------------------------------------------------------

@@ -204,6 +204,60 @@ const doomed = await checkIns.latest()
 ok('remove returns true', (await checkIns.remove(doomed.id)) === true)
 ok('remove missing false', (await checkIns.remove('nope')) === false)
 
+console.log('\n-- timeline --')
+await D.clearAll()
+const { prettyTime, nextReminder, prettyClock } = await import(new URL('../src/lib/time.js', import.meta.url))
+
+const today = D.toDateKey()
+const atToday = (h, m) => { const d = new Date(); d.setHours(h, m, 0, 0); return d.toISOString() }
+const yesterday = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString() })()
+
+ok('empty day', (await D.timelineFor(today)).length === 0)
+
+const ci = await checkIns.create({ timeSlot: 'morning', score: 8, timestamp: atToday(9, 15) })
+await brainDumps.create({ checkInId: ci.id, text: 'spiralling about the deadline', timestamp: atToday(9, 20) })
+await breathingSessions.create({ checkInId: ci.id, mode: 'box', cyclesCompleted: 4, timestamp: atToday(9, 30) })
+await brainDumps.create({ text: 'a thought on its own', timestamp: atToday(14, 0) })
+await breathingSessions.create({ mode: '478', cyclesCompleted: 2, timestamp: atToday(16, 30) })
+await checkIns.create({ timeSlot: 'evening', score: 2, timestamp: atToday(18, 45) })
+await checkIns.create({ timeSlot: 'night', score: 9, timestamp: yesterday })
+
+const line = await D.timelineFor(today)
+ok('yesterday excluded', line.length === 4)
+ok('newest first', line.map(e => e.kind).join(',') === 'checkIn,breathing,brainDump,checkIn')
+ok('linked items nest, not repeat', line.filter(e => e.kind === 'brainDump').length === 1)
+
+const morning = line.find(e => e.kind === 'checkIn' && e.score === 8)
+ok('check-in carries its band', morning.band === 'high')
+ok('nested brain dump', morning.brainDumps.length === 1 && morning.brainDumps[0].text.includes('deadline'))
+ok('nested breathing', morning.breathingSessions.length === 1 && morning.breathingSessions[0].cyclesCompleted === 4)
+
+const evening = line.find(e => e.kind === 'checkIn' && e.score === 2)
+ok('unaccompanied check-in has empty arrays', evening.brainDumps.length === 0 && evening.breathingSessions.length === 0)
+ok('standalone dump exposes text', line.find(e => e.kind === 'brainDump').text === 'a thought on its own')
+ok('standalone breathing exposes mode', line.find(e => e.kind === 'breathing').mode === '478')
+await D.clearAll()
+
+console.log('\n-- reminders --')
+ok('prettyTime on the hour', ['08:00','12:00','17:00','21:00'].map(prettyTime).join(' ') === '8am 12pm 5pm 9pm')
+ok('prettyTime with minutes', prettyTime('07:30') === '7:30am' && prettyTime('00:15') === '12:15am')
+ok('prettyTime midnight and noon', prettyTime('00:00') === '12am' && prettyTime('12:30') === '12:30pm')
+
+const defaults = await notificationSettings.get()
+const at = (h, m) => { const d = new Date(); d.setHours(h, m, 0, 0); return d }
+ok('before the first', JSON.stringify(nextReminder(defaults, at(6, 0))) === JSON.stringify({ time: '08:00', tomorrow: false }))
+ok('between slots', JSON.stringify(nextReminder(defaults, at(13, 0))) === JSON.stringify({ time: '17:00', tomorrow: false }))
+ok('after the last wraps to tomorrow', JSON.stringify(nextReminder(defaults, at(22, 30))) === JSON.stringify({ time: '08:00', tomorrow: true }))
+ok('exactly on a slot picks the next', nextReminder(defaults, at(12, 0)).time === '17:00')
+
+await notificationSettings.setSlot('morning', { enabled: false })
+ok('disabled slot is skipped', nextReminder(await notificationSettings.get(), at(6, 0)).time === '12:00')
+for (const slot of D.TIME_SLOTS) await notificationSettings.setSlot(slot, { enabled: false })
+ok('all off returns null', nextReminder(await notificationSettings.get(), at(6, 0)) === null)
+await notificationSettings.reset()
+
+ok('prettyClock formats a time', /^\d{1,2}:\d{2}\s?[ap]m$/.test(prettyClock(atToday(14, 5))))
+
 await D.clearAll()
 ok('clearAll empties', (await checkIns.count())===0 && (await journalEntries.count())===0)
 ok('clearAll resets settings', (await notificationSettings.get()).morning.time === '08:00')
