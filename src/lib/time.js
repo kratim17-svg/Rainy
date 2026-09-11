@@ -35,6 +35,11 @@ export function formatLongDate(date = new Date()) {
   })
 }
 
+/** A YYYY-MM-DD key as "Thursday, 14 May". Parsed local, so it never slips a day. */
+export function formatDayKey(key) {
+  return formatLongDate(new Date(`${key}T00:00:00`))
+}
+
 /** "17:00" -> "5pm", "07:30" -> "7:30am" */
 export function prettyTime(hhmm) {
   const [hours, minutes] = hhmm.split(':').map(Number)

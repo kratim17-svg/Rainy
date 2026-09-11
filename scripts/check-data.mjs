@@ -258,6 +258,56 @@ await notificationSettings.reset()
 
 ok('prettyClock formats a time', /^\d{1,2}:\d{2}\s?[ap]m$/.test(prettyClock(atToday(14, 5))))
 
+console.log('\n-- journal --')
+await journalEntries.clear()
+const { formatDayKey } = await import(new URL('../src/lib/time.js', import.meta.url))
+const day = D.toDateKey()
+
+ok('no entry to start', (await D.journalFor(day)) === null)
+ok('past is empty', (await D.pastJournalEntries(day)).length === 0)
+
+const first = await D.addJournalItem('walked to the shop', day)
+ok('first item creates the entry', first.items.length === 1)
+const second = await D.addJournalItem('called mum', day)
+ok('second item appends', second.items.join('|') === 'walked to the shop|called mum')
+ok('still one entry for the day', (await journalEntries.count()) === 1)
+ok('createdAt held across appends', second.createdAt === first.createdAt)
+
+ok('blank text is ignored', (await D.addJournalItem('   ', day)).items.length === 2)
+ok('no entry created by blank text', (await journalEntries.count()) === 1)
+ok('text is trimmed', (await D.addJournalItem('  ate lunch  ', day)).items[2] === 'ate lunch')
+
+// duplicates must be removable independently, which is why index not value
+await D.addJournalItem('rested', day)
+await D.addJournalItem('rested', day)
+ok('duplicates both stored', (await D.journalFor(day)).items.filter(i => i === 'rested').length === 2)
+const afterDup = await D.removeJournalItem(3, day)
+ok('removes by position, not value', afterDup.items.filter(i => i === 'rested').length === 1)
+
+const afterRemove = await D.removeJournalItem(0, day)
+ok('removes the right item', afterRemove.items.join('|') === 'called mum|ate lunch|rested')
+ok('removing a missing index is harmless', (await D.removeJournalItem(99, day)).items.length === 3)
+
+// emptying a day should take the day with it
+await journalEntries.clear()
+await D.addJournalItem('only thing', day)
+ok('entry exists', (await journalEntries.count()) === 1)
+ok('removing the last item returns null', (await D.removeJournalItem(0, day)) === null)
+ok('and deletes the entry', (await journalEntries.count()) === 0)
+ok('removing from a missing day is harmless', (await D.removeJournalItem(0, day)) === null)
+
+// past entries
+const older = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return D.toDateKey(d) }
+await D.addJournalItem('today thing', day)
+await D.addJournalItem('yesterday thing', older(1))
+await D.addJournalItem('last week thing', older(7))
+const earlier = await D.pastJournalEntries(day)
+ok('past excludes today', earlier.length === 2 && !earlier.some(e => e.date === day))
+ok('past is newest first', earlier[0].date === older(1) && earlier[1].date === older(7))
+ok('formatDayKey reads as a date', /^[A-Za-z]+,\s/.test(formatDayKey(day)))
+ok('formatDayKey does not slip a day', formatDayKey('2026-01-01').includes('1 January') || formatDayKey('2026-01-01').includes('January 1'))
+await journalEntries.clear()
+
 await D.clearAll()
 ok('clearAll empties', (await checkIns.count())===0 && (await journalEntries.count())===0)
 ok('clearAll resets settings', (await notificationSettings.get()).morning.time === '08:00')

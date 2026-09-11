@@ -509,6 +509,40 @@
   .tab:hover { color: var(--rainy-ink-soft); }
   .tab[aria-current='page'] { color: var(--rainy-low); }
 
+  /* single-line text input */
+  .field {
+    width: 100%;
+    min-height: 3rem;
+    padding: 0 1.125rem;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--rainy-line);
+    background-color: var(--rainy-veil);
+    color: var(--rainy-ink);
+    font-size: 0.9375rem;
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    transition: border-color 160ms ease;
+  }
+  .field::placeholder { color: var(--rainy-ink-faint); }
+  .field:focus {
+    outline: none;
+    border-color: color-mix(in srgb, var(--rainy-low) 45%, transparent);
+  }
+
+  /* a journal item: soft, pill-shaped, one per row */
+  .item-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 0.875rem 0.875rem 0.875rem 1.125rem;
+    border-radius: var(--radius-pill);
+    background-color: var(--rainy-veil);
+    border: 1px solid var(--rainy-line);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+  }
+
   /* small letterspaced caps, for field labels and metadata */
   .label {
     font-family: theme(--font-mono);

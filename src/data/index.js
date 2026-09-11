@@ -80,12 +80,44 @@ export async function journalFor(date = toDateKey()) {
 
 /**
  * Append an item to a day's entry, creating the entry if it is the first.
- * @returns the saved entry
+ * Blank text is ignored rather than producing an empty entry.
+ * @returns the saved entry, or null when there was nothing to add
  */
 export async function addJournalItem(text, date = toDateKey()) {
+  const item = String(text ?? '').trim()
   const existing = await journalFor(date)
-  if (!existing) return journalEntries.create({ date, items: [text] })
-  return journalEntries.update(existing.id, { items: [...existing.items, text] })
+  if (!item) return existing
+
+  if (!existing) return journalEntries.create({ date, items: [item] })
+  return journalEntries.update(existing.id, { items: [...existing.items, item] })
+}
+
+/**
+ * Remove one item from a day by position — items are plain strings and may
+ * repeat, so an index is the only safe way to say which one.
+ *
+ * The whole entry goes when its last item does; a day with nothing in it is
+ * not a day worth listing.
+ *
+ * @returns the saved entry, or null if the entry is now gone
+ */
+export async function removeJournalItem(index, date = toDateKey()) {
+  const entry = await journalFor(date)
+  if (!entry) return null
+
+  const items = entry.items.filter((_, position) => position !== index)
+  if (!items.length) {
+    await journalEntries.remove(entry.id)
+    return null
+  }
+
+  return journalEntries.update(entry.id, { items })
+}
+
+/** Earlier days that actually hold something, newest first. */
+export async function pastJournalEntries(before = toDateKey()) {
+  const entries = await journalEntries.list()
+  return entries.filter((entry) => entry.date < before && entry.items.length > 0)
 }
 
 /* -------------------------------------------------------------------------
