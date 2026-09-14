@@ -194,6 +194,29 @@ export async function timelineFor(date = toDateKey()) {
 }
 
 /* -------------------------------------------------------------------------
+   Whole-history read
+
+   Insights works over everything at once and slices it in memory, so
+   changing the range does not go back to storage.
+------------------------------------------------------------------------- */
+
+/** Every record in every collection, oldest last. */
+export async function allActivity() {
+  const [ins, dumps, sessions, journals] = await Promise.all([
+    checkIns.list(),
+    brainDumps.list(),
+    breathingSessions.list(),
+    journalEntries.list(),
+  ])
+  return {
+    checkIns: ins,
+    brainDumps: dumps,
+    breathingSessions: sessions,
+    journalEntries: journals,
+  }
+}
+
+/* -------------------------------------------------------------------------
    Backup
 
    Also the migration path: exportAll() produces exactly the shape a future

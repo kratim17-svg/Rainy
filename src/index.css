@@ -247,6 +247,14 @@
     background-color: var(--rainy-veil-strong);
   }
 
+  /* modals are opaque — reading through a dialog to the page behind it is
+     the one place the glass treatment actively hurts */
+  .sheet-opaque {
+    background-color: var(--rainy-surface);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
   /* -------------------------------------------------------------------------
      Orb — the emotional centrepiece. A soft gradient sphere with a bloom of
      colour behind it. Set the band with .orb-low / .orb-med / .orb-high.

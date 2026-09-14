@@ -308,6 +308,96 @@ ok('formatDayKey reads as a date', /^[A-Za-z]+,\s/.test(formatDayKey(day)))
 ok('formatDayKey does not slip a day', formatDayKey('2026-01-01').includes('1 January') || formatDayKey('2026-01-01').includes('January 1'))
 await journalEntries.clear()
 
+console.log('\n-- insights --')
+await D.clearAll()
+const I = await import(new URL('../src/lib/insights.js', import.meta.url))
+const dk = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return D.toDateKey(d) }
+const ts = (n, h) => { const d = new Date(); d.setDate(d.getDate() - n); d.setHours(h, 0, 0, 0); return d.toISOString() }
+
+// --- averages by slot
+const avgRows = I.averageByTimeSlot([
+  { timeSlot: 'morning', score: 8 }, { timeSlot: 'morning', score: 6 },
+  { timeSlot: 'evening', score: 2 },
+])
+ok('always four slots in order', avgRows.map(r => r.slot).join() === 'morning,midday,evening,night')
+ok('mean is right', avgRows[0].average === 7 && avgRows[0].count === 2)
+ok('empty slot is null not zero', avgRows[1].average === null && avgRows[1].count === 0 && avgRows[1].band === null)
+ok('band from the mean', avgRows[0].band === 'high' && avgRows[2].band === 'low')
+ok('mean rounds to one decimal', I.averageByTimeSlot([
+  { timeSlot: 'night', score: 1 }, { timeSlot: 'night', score: 2 }, { timeSlot: 'night', score: 2 },
+])[3].average === 1.7)
+ok('most anxious slot', I.mostAnxiousSlot(avgRows).slot === 'morning')
+ok('most anxious ignores empty slots', I.mostAnxiousSlot(I.averageByTimeSlot([])) === null)
+
+// --- words
+const dumps = [
+  { id: 'd1', timestamp: ts(1, 9), checkInId: 'c1', text: 'work work and the deadline', wordFrequencies: { work: 2, deadline: 1 } },
+  { id: 'd2', timestamp: ts(0, 9), checkInId: null, text: 'more work tonight', wordFrequencies: { more: 1, work: 1, tonight: 1 } },
+  { id: 'd3', timestamp: ts(2, 9), checkInId: null, text: 'sleep was bad', wordFrequencies: {} },
+]
+const agg = I.aggregateWords(dumps)
+ok('counts merge across dumps', agg.find(w => w.word === 'work').count === 3)
+ok('sorted most frequent first', agg[0].word === 'work')
+ok('unfinished dump still counted from its text', agg.some(w => w.word === 'sleep'))
+ok('stop words stay out', !agg.some(w => ['and','the','was'].includes(w.word)))
+ok('a non-stop word survives', agg.some(w => w.word === 'more'))
+
+const scores = new Map([['c1', 8]])
+const mentions = I.excerptsFor('work', dumps, scores)
+ok('finds every mention', mentions.length === 2)
+ok('newest first', mentions[0].id === 'd2')
+ok('linked dump carries its score', mentions.find(m => m.id === 'd1').score === 8 && mentions.find(m => m.id === 'd1').band === 'high')
+ok('standalone dump has no score', mentions.find(m => m.id === 'd2').score === null)
+ok('excerpt contains the word', mentions[0].excerpt.toLowerCase().includes('work'))
+
+const long = 'x'.repeat(300) + ' deadline ' + 'y'.repeat(300)
+const cut = I.excerptAround(long, 'deadline', 40)
+ok('long text is windowed', cut.length < 150 && cut.includes('deadline'))
+ok('window is marked as clipped', cut.startsWith('…') && cut.endsWith('…'))
+ok('short text is left whole', I.excerptAround('just deadline', 'deadline') === 'just deadline')
+ok('unlocatable word falls back to the opening', I.excerptAround("don't panic", 'dont').includes('panic'))
+
+// --- streaks
+const set = (...keys) => new Set(keys)
+ok('no activity', I.streakFrom(set(), dk(0)) === 0)
+ok('today only', I.streakFrom(set(dk(0)), dk(0)) === 1)
+ok('three running days', I.streakFrom(set(dk(0), dk(1), dk(2)), dk(0)) === 3)
+ok('quiet today keeps yesterday alive', I.streakFrom(set(dk(1), dk(2)), dk(0)) === 2)
+ok('two silent days ends it', I.streakFrom(set(dk(2), dk(3)), dk(0)) === 0)
+ok('a gap stops the count', I.streakFrom(set(dk(0), dk(1), dk(3)), dk(0)) === 2)
+
+// --- reminders
+const answered = I.remindersResponded([
+  { timestamp: ts(0, 9), timeSlot: 'morning' },
+  { timestamp: ts(0, 10), timeSlot: 'morning' },
+  { timestamp: ts(0, 13), timeSlot: 'midday' },
+  { timestamp: ts(1, 9), timeSlot: 'morning' },
+], 7)
+ok('same slot twice counts once', answered.responded === 3)
+ok('total is 4 a day', answered.total === 28)
+ok('nothing answered', I.remindersResponded([], 7).responded === 0)
+
+// --- journal days and active days
+ok('journal days ignore empty entries', I.journalDayCount([
+  { date: dk(0), items: ['a'] }, { date: dk(1), items: [] }, { date: dk(2), items: ['b','c'] },
+]) === 2)
+
+const active = I.activeDayKeys({
+  checkIns: [{ timestamp: ts(0, 9) }],
+  brainDumps: [{ timestamp: ts(1, 9) }],
+  breathingSessions: [{ timestamp: ts(1, 10) }],
+  journalEntries: [{ date: dk(4), items: ['x'] }, { date: dk(5), items: [] }],
+})
+ok('distinct days across every kind', active.size === 3)
+ok('same day from two sources counts once', active.has(dk(1)))
+ok('an empty journal day is not activity', !active.has(dk(5)))
+
+// --- range slicing
+const rows = [{ timestamp: ts(0, 9) }, { timestamp: ts(6, 9) }, { timestamp: ts(7, 9) }, { timestamp: ts(29, 9) }]
+ok('7 days includes today and six back', I.withinDays(rows, 7).length === 2)
+ok('30 days reaches further', I.withinDays(rows, 30).length === 4)
+ok('journal sliced on its date field', I.withinDays([{ date: dk(0), items: [] }, { date: dk(10), items: [] }], 7, 'date').length === 1)
+
 await D.clearAll()
 ok('clearAll empties', (await checkIns.count())===0 && (await journalEntries.count())===0)
 ok('clearAll resets settings', (await notificationSettings.get()).morning.time === '08:00')
