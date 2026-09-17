@@ -438,6 +438,40 @@ const summary = Object.entries(labels)
 ok('summary pluralises correctly', summary === '1 check-in · 2 brain dumps · 1 breathing session · 1 journal day')
 await D.clearAll()
 
+console.log('\n-- reminder scheduling --')
+// notifications.js reads browser globals at call time rather than on import,
+// so the scheduling maths runs here. Outside a browser supported() is false,
+// which is exactly the "no notifications available" path asserted below.
+const N = await import(new URL('../src/lib/notifications.js', import.meta.url))
+
+const on = (h, m) => { const d = new Date(2026, 4, 14, h, m, 0, 0); return d }
+ok('later today', N.nextOccurrence('17:00', on(9, 0)).getHours() === 17 && N.nextOccurrence('17:00', on(9, 0)).getDate() === 14)
+ok('already gone rolls to tomorrow', N.nextOccurrence('08:00', on(9, 0)).getDate() === 15)
+ok('exactly now rolls to tomorrow', N.nextOccurrence('09:00', on(9, 0)).getDate() === 15)
+ok('a minute away stays today', N.nextOccurrence('09:01', on(9, 0)).getDate() === 14)
+ok('seconds are zeroed', N.nextOccurrence('17:00', on(9, 0)).getSeconds() === 0)
+ok('midnight handled', N.nextOccurrence('00:00', on(23, 30)).getDate() === 15)
+
+await notificationSettings.reset()
+const due = await N.upcomingReminders(on(9, 0))
+ok('all four when all enabled', due.length === 4)
+ok('soonest first', due.map(r => r.time).join() === '12:00,17:00,21:00,08:00')
+ok('carries slot and label', due[0].slot === 'midday' && due[0].label === 'Midday')
+ok('08:00 wrapped to tomorrow', due[3].at.getDate() === 15)
+
+await notificationSettings.setSlot('midday', { enabled: false })
+await notificationSettings.setSlot('night', { enabled: false })
+const fewer = await N.upcomingReminders(on(9, 0))
+ok('disabled slots are dropped', fewer.length === 2 && fewer.map(r => r.slot).join() === 'evening,morning')
+
+for (const slot of D.TIME_SLOTS) await notificationSettings.setSlot(slot, { enabled: false })
+ok('all off schedules nothing', (await N.upcomingReminders(on(9, 0))).length === 0)
+await notificationSettings.reset()
+
+ok('tapping a reminder targets the check-in', N.CHECK_IN_URL === '/check-in')
+ok('background tier is feature-detected, not assumed', N.canScheduleInBackground() === false)
+ok('nothing scheduled without permission', (await N.scheduleReminders()).tier === 'none')
+
 await D.clearAll()
 ok('clearAll empties', (await checkIns.count())===0 && (await journalEntries.count())===0)
 ok('clearAll resets settings', (await notificationSettings.get()).morning.time === '08:00')

@@ -4,6 +4,7 @@ import { ChevronRight, PenLine, Wind } from 'lucide-react'
 import Screen from './Screen.jsx'
 import Toast from '../components/Toast.jsx'
 import TodayList from '../components/TodayList.jsx'
+import PermissionCard from '../components/PermissionCard.jsx'
 import {
   brainDumps,
   breathingSessions,
@@ -12,6 +13,7 @@ import {
   timelineFor,
 } from '../data/index.js'
 import { greetingFor, formatLongDate, nextReminder, prettyTime } from '../lib/time.js'
+import { scheduleReminders } from '../lib/notifications.js'
 
 /** The two things you can do without checking in first. */
 const OPEN_DOORS = [
@@ -40,6 +42,8 @@ export default function Home() {
     }
 
     refresh()
+    // re-arm on every visit, so edited times take effect without a reload
+    scheduleReminders()
     // keep the list honest when a flow saves something, or a second tab does
     const stop = [checkIns, brainDumps, breathingSessions].map((repo) => repo.subscribe(refresh))
 
@@ -56,6 +60,8 @@ export default function Home() {
 
   return (
     <Screen label={formatLongDate(now)} title={greetingFor(now)}>
+      <PermissionCard onSettled={scheduleReminders} />
+
       <Link
         to="/check-in"
         className="sheet mt-8 flex items-center justify-between gap-4 p-6"

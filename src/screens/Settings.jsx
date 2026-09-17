@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Download } from 'lucide-react'
+import { Bell, BellOff, Download, Send } from 'lucide-react'
 import FocusHeader from '../components/FocusHeader.jsx'
 import {
   exportAll,
@@ -8,6 +8,14 @@ import {
   TIME_SLOTS,
 } from '../data/index.js'
 import { SLOT_LABELS } from '../lib/insights.js'
+import {
+  canScheduleInBackground,
+  permission as notificationPermission,
+  requestPermission,
+  scheduleReminders,
+  sendTestNotification,
+  supported as notificationsSupported,
+} from '../lib/notifications.js'
 
 const VERSION = __APP_VERSION__
 
@@ -25,6 +33,8 @@ export default function Settings() {
   const [status, setStatus] = useState(null)
   const [busy, setBusy] = useState(false)
   const [exported, setExported] = useState(null)
+  const [perm, setPerm] = useState(notificationPermission)
+  const [tested, setTested] = useState(null)
 
   useEffect(() => {
     let live = true
@@ -55,7 +65,16 @@ export default function Settings() {
       const next = await notificationSettings.update(draft)
       setSaved(next)
       setDraft(next)
-      setStatus({ ok: true, message: 'Reminders saved' })
+      const armed = await scheduleReminders()
+      setStatus({
+        ok: true,
+        message:
+          armed.tier === 'background'
+            ? 'Reminders saved and scheduled'
+            : armed.tier === 'session'
+              ? `Reminders saved · ${armed.count} armed while Rainy is open`
+              : 'Reminders saved',
+      })
     } catch (cause) {
       setStatus({ ok: false, message: cause.message })
     }
@@ -88,6 +107,23 @@ export default function Settings() {
       setExported({ ok: true, name, summary })
     } catch (cause) {
       setExported({ ok: false, name: cause.message })
+    }
+    setBusy(false)
+  }
+
+  async function askPermission() {
+    setBusy(true)
+    setPerm(await requestPermission())
+    setBusy(false)
+  }
+
+  async function test() {
+    setBusy(true)
+    try {
+      await sendTestNotification()
+      setTested({ ok: true, message: 'Sent — check your notification shade' })
+    } catch (cause) {
+      setTested({ ok: false, message: cause.message })
     }
     setBusy(false)
   }
@@ -147,6 +183,66 @@ export default function Settings() {
           >
             {status.message}
           </p>
+        )}
+
+        {notificationsSupported() && (
+          <div className="sheet mt-3 p-5">
+            <div className="flex items-center gap-3">
+              <span
+                className={`grid size-9 shrink-0 place-items-center rounded-pill ${
+                  perm === 'granted' ? 'bg-low-wash text-low' : 'bg-sunken text-ink-faint'
+                }`}
+              >
+                {perm === 'granted' ? <Bell size={16} /> : <BellOff size={16} />}
+              </span>
+              <p className="flex-1 text-[14px] leading-snug">
+                {perm === 'granted'
+                  ? 'Notifications are on for this device.'
+                  : perm === 'denied'
+                    ? 'Notifications are blocked in your browser settings.'
+                    : 'Notifications are not switched on yet.'}
+              </p>
+            </div>
+
+            {perm === 'granted' && !canScheduleInBackground() && (
+              <p className="text-ink-faint mt-3 text-[13px] leading-relaxed">
+                This browser can only fire reminders while Rainy is open. Delivery when the
+                app is closed needs a push server — see the README.
+              </p>
+            )}
+
+            {perm === 'default' && (
+              <button
+                type="button"
+                onClick={askPermission}
+                disabled={busy}
+                className="btn btn-soft mt-4 min-h-11"
+              >
+                Turn on notifications
+              </button>
+            )}
+
+            {perm === 'granted' && (
+              <button
+                type="button"
+                onClick={test}
+                disabled={busy}
+                className="btn btn-soft mt-4 min-h-11"
+              >
+                <Send size={16} aria-hidden="true" />
+                Send a test notification
+              </button>
+            )}
+
+            {tested && (
+              <p
+                role="status"
+                className={`mt-3 text-[13px] ${tested.ok ? 'text-low' : 'text-high'}`}
+              >
+                {tested.message}
+              </p>
+            )}
+          </div>
         )}
 
         <button

@@ -33,7 +33,7 @@ self.addEventListener('push', (event) => {
     renotify: false,
     requireInteraction: false,
     silent: payload.silent ?? false,
-    data: { url: payload.url || '/' },
+    data: { url: payload.url || '/check-in' },
   }
 
   event.waitUntil(self.registration.showNotification(title, options))
@@ -41,7 +41,7 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
-  const target = event.notification.data?.url || '/'
+  const target = event.notification.data?.url || '/check-in'
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
