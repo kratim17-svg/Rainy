@@ -3,7 +3,7 @@
  * screen, and the bottom tabs.
  */
 
-import { NavLink, Outlet } from 'react-router'
+import { Link, NavLink, Outlet } from 'react-router'
 import { House, NotebookPen, ChartColumn, Settings } from 'lucide-react'
 
 const TABS = [
@@ -21,9 +21,9 @@ export default function AppShell() {
         <header className="app-bar pt-safe sticky top-0 z-10">
           <div className="flex items-center justify-between px-5 pt-4 pb-6">
             <span className="text-[17px] font-medium tracking-tight">Rainy</span>
-            <button type="button" className="control control-sm" aria-label="Settings">
+            <Link to="/settings" className="control control-sm" aria-label="Settings">
               <Settings size={17} />
-            </button>
+            </Link>
           </div>
         </header>
 

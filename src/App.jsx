@@ -18,6 +18,7 @@ import CheckIn from './screens/CheckIn.jsx'
 import CheckInSupport from './screens/CheckInSupport.jsx'
 import BrainDump from './screens/BrainDump.jsx'
 import Breathe from './screens/Breathe.jsx'
+import Settings from './screens/Settings.jsx'
 
 export default function App() {
   return (
@@ -34,6 +35,7 @@ export default function App() {
           <Route path="check-in/support" element={<CheckInSupport />} />
           <Route path="brain-dump" element={<BrainDump />} />
           <Route path="breathe" element={<Breathe />} />
+          <Route path="settings" element={<Settings />} />
         </Route>
 
         {/* an unknown URL — from an old notification, say — lands home */}

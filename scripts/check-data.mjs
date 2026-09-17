@@ -398,6 +398,46 @@ ok('7 days includes today and six back', I.withinDays(rows, 7).length === 2)
 ok('30 days reaches further', I.withinDays(rows, 30).length === 4)
 ok('journal sliced on its date field', I.withinDays([{ date: dk(0), items: [] }, { date: dk(10), items: [] }], 7, 'date').length === 1)
 
+console.log('\n-- export payload --')
+await D.clearAll()
+const ci2 = await checkIns.create({ timeSlot: 'morning', score: 7 })
+await brainDumps.create({ checkInId: ci2.id, text: 'work and sleep', wordFrequencies: { work: 1, sleep: 1 } })
+await brainDumps.create({ text: 'standalone one' })
+await breathingSessions.create({ mode: '478', cyclesCompleted: 4 })
+await D.addJournalItem('walked', D.toDateKey())
+await notificationSettings.setSlot('night', { enabled: false, time: '22:15' })
+
+const payload = await D.exportAll()
+ok('has app and version', payload.app === 'rainy' && payload.version === 1)
+ok('exportedAt is ISO', payload.exportedAt === new Date(payload.exportedAt).toISOString())
+ok('all four collections present', ['checkIns','brainDumps','breathingSessions','journalEntries']
+  .every(k => Array.isArray(payload.data[k])))
+ok('counts are right', payload.data.checkIns.length === 1 && payload.data.brainDumps.length === 2
+  && payload.data.breathingSessions.length === 1 && payload.data.journalEntries.length === 1)
+ok('settings included', payload.data.notificationSettings.night.time === '22:15')
+ok('links survive the export', payload.data.brainDumps.some(d => d.checkInId === ci2.id))
+ok('word frequencies survive', payload.data.brainDumps.some(d => d.wordFrequencies?.work === 1))
+
+// it must be a real file a browser can hand back
+const text = JSON.stringify(payload, null, 2)
+const reparsed = JSON.parse(text)
+ok('serialises and reparses', reparsed.data.checkIns[0].score === 7)
+ok('pretty-printed, not one line', text.includes('\n  '))
+
+// and it must be restorable
+await D.importAll(reparsed)
+ok('import restores every record', (await checkIns.count()) === 1 && (await brainDumps.count()) === 2)
+ok('import restores settings', (await notificationSettings.get()).night.time === '22:15')
+ok('import keeps ids', (await checkIns.list())[0].id === ci2.id)
+
+// the counts the Settings screen reports must match the file
+const labels = { checkIns: 'check-in', brainDumps: 'brain dump', breathingSessions: 'breathing session', journalEntries: 'journal day' }
+const summary = Object.entries(labels)
+  .map(([k, l]) => { const n = payload.data[k]?.length ?? 0; return `${n} ${l}${n === 1 ? '' : 's'}` })
+  .join(' · ')
+ok('summary pluralises correctly', summary === '1 check-in · 2 brain dumps · 1 breathing session · 1 journal day')
+await D.clearAll()
+
 await D.clearAll()
 ok('clearAll empties', (await checkIns.count())===0 && (await journalEntries.count())===0)
 ok('clearAll resets settings', (await notificationSettings.get()).morning.time === '08:00')
